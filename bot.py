@@ -11,6 +11,7 @@ import DmWelcomeMessage
 import asyncio
 import aiohttp
 import AutoFeed
+import AIImage
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -76,6 +77,12 @@ async def auto_feed(interaction: discord.Interaction,message: str,time: str,chan
 async def auto_feed_error(interaction: discord.Interaction,error):
     print("auto_feed_error",error)
     await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
+    return
+
+@client.tree.command(name='imagine')
+async def Imagine(interaction: discord.Interaction,prompt: str):
+    guild_id=str(interaction.guild_id)
+    await AIImage.Imagine(client,interaction,dbi.get(guild_id,db.KEYS.EMBED_COLOR),prompt)
     return
 
 @client.tree.command(name='autofeed-stop')
