@@ -12,6 +12,7 @@ import asyncio
 import aiohttp
 import AutoFeed
 import AIImage
+import random
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -35,6 +36,12 @@ async def msg_autocomplete(interaction: discord.Interaction,current: str) -> Lis
     return [
         app_commands.Choice(name=msg, value=msg)
         for msg in lmsgs if current.lower() in msg.lower()
+    ]
+
+async def booksgenre_autocomplete(interaction: discord.Interaction,current: str) -> List[app_commands.Choice[str]]:
+    return [
+        app_commands.Choice(name=msg, value=msg)
+        for msg in db.books_keys if current.lower() in msg.lower()
     ]
 
 def is_owner(interaction: discord.Interaction):
@@ -100,6 +107,26 @@ async def auto_feed_stop_error(interaction: discord.Interaction,error):
     await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
     return
 
+@client.tree.command(name='random-book')
+@app_commands.autocomplete(genre=booksgenre_autocomplete)
+async def random_books(interaction: discord.Interaction,genre: Optional[str]=None):
+    await interaction.response.defer()
+    print('inside random_books')
+    if genre==None:
+        books=[]
+        for k in db.books:
+            books.extend(db.books[k])
+        book=books[random.randint(0,len(books)-1)]
+        await interaction.followup.send(book)
+        return
+    if db.books.get(genre)==None:
+        await interaction.followup.send("Not a valid genre")
+        return
+    books=db.books[genre]
+    book=books[random.randint(0,len(books)-1)]
+    await interaction.followup.send(book)
+    return
+
 @client.tree.command(name='setup')
 @app_commands.check(is_owner)
 async def setup(interaction: discord.Interaction,embed_color: str,role: discord.Role):
@@ -120,6 +147,44 @@ async def setup(interaction: discord.Interaction,embed_color: str,role: discord.
 async def setup_error(interaction: discord.Interaction,error):
     print("setup_error",error)
     await interaction.response.send_message("Only the server owner can access this command",ephemeral=True)
+    return
+
+@client.tree.command(name='add-role')
+@app_commands.check(check_command_permission)
+async def add_role(interaction: discord.Interaction,member: discord.Member,role: discord.Role):
+    """Add a role to a member"""
+    print("inside add_role")
+    await interaction.response.defer()
+    await member.add_roles(role)
+    guild_id=str(interaction.guild_id)
+    embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR))
+    embed.description=f'Added role {role.name} to {member.name}'
+    await interaction.followup.send(embed=embed)
+    return
+
+@add_role.error
+async def add_role_error(interaction: discord.Interaction,error):
+    print("add_role_error",error)
+    await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
+    return
+
+@client.tree.command(name='remove-role')
+@app_commands.check(check_command_permission)
+async def remove_role(interaction: discord.Interaction,member: discord.Member,role: discord.Role):
+    """Remove a role from a member"""
+    print("inside remove role")
+    await interaction.response.defer()
+    await member.remove_roles(role)
+    guild_id=str(interaction.guild_id)
+    embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR))
+    embed.description=f'Removed role {role.name} from {member.name}'
+    await interaction.followup.send(embed=embed)
+    return
+
+@remove_role.error
+async def remove_role_error(interaction: discord.Interaction,error):
+    print('remove_role_error',error)
+    await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
     return
 
 @client.tree.command(name='welcome-message')

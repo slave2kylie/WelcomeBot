@@ -1,3 +1,17 @@
+import json
+
+global books
+
+with open('books.json') as f:
+    global books
+    books=json.load(f)
+    print(f'loaded books,{books}')
+
+books_keys=[]
+for key in books:
+    books_keys.append(key)
+print(f'loaded books keys,{books_keys}')
+
 mp={"0":"0"}
 
 class KEYS:
