@@ -36,7 +36,9 @@ for key in shows:
     shows_keys.append(key)
 print(f'loaded shows keys,{shows_keys}')
 
-mp={"0":"0"}
+
+afk=dict()
+mp=dict()
 
 class KEYS:
     CMD_ROLE = 'cmd_role'

@@ -72,38 +72,18 @@ async def send_auto_feed_stop(interaction,msg,channel):
     await interaction.response.send_message('Auto feed is stopped',ephemeral=True)
     return
 
-"""
-async def auto_delete_repeat_task(client,channel,time):
-    print('inside auto_delete_repeat_task')
-    while True:
-        await asyncio.sleep(time)
-        print('time to delete messages')
-        async for m in channel.history():
-            if m.pinned==False:
-                print(f'message:{m.content}')
-                await m.delete()
+async def set_reminder_task(user,dbi,guild_id,channel,reason,t):
+    print("set_reminder_task")
+    await asyncio.sleep(t)
+    embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR),title="**Reminder**")
+    embed.description=f"> {reason}"
+    await channel.send(f"<@{user.id}>",embed=embed)
     return
 
-async def auto_delete(client,interaction,channel,time):
-    print('inside auto_delete')
-    key=str(channel.id)
-    if delete_tasks.get(key)!=None:
-        await interaction.followup.send("already set auto delete for this channel.please delete existing auto delete first")
-        return
-    task=client.loop.create_task(auto_delete_repeat_task(client,channel,time))
-    delete_tasks[key]=task
-    await interaction.followup.send(f"auto-delete is set",ephemeral=True)
+async def set_reminder(client,interaction,t,reason,dbi):
+    print("Inside set_reminder")
+    guild_id=str(interaction.guild_id)
+    channel=interaction.channel
+    client.loop.create_task(set_reminder_task(interaction.user,dbi,guild_id,channel,reason,t))
+    await interaction.followup.send("reminder has been set")
     return
-
-async def auto_delete_stop(interaction,channel):
-    print('inside auto_delete_stop')
-    key=str(channel.id)
-    if delete_tasks.get(key)==None:
-        await interaction.followup.send(f"There seems to be no auto-delete set for {channel.name}",ephemeral=True)
-        return
-    task=delete_tasks[key]
-    task.cancel()
-    delete_tasks.pop(key)
-    await interaction.followup.send(f"The auto-delete for {channel.name} has been stopped",ephemeral=True)
-    return
-"""

@@ -10,9 +10,11 @@ import WelcomeMessage
 import DmWelcomeMessage
 import asyncio
 import aiohttp
+import random
+
 import AutoFeed
 import AIImage
-import random
+import Warnings
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -42,6 +44,17 @@ async def genre_autocomplete(interaction: discord.Interaction,current: str) -> L
     keys=db.books_keys
     if interaction.command.name=="random-movie": keys=db.movies_keys
     if interaction.command.name=="random-show": keys=db.shows_keys
+    return [
+        app_commands.Choice(name=msg, value=msg)
+        for msg in keys if current.lower() in msg.lower()
+    ]
+
+async def criminal_autocomplete(interaction: discord.Interaction,current: str) -> List[app_commands.Choice[str]]:
+    keys=[]
+    user_id=str(interaction.namespace.user.id)
+    guild_id=str(interaction.guild_id)
+    if Warnings.warnings.get(guild_id)!=None and Warnings.warnings[guild_id].get(user_id)!=None:
+        keys=Warnings.warnings[guild_id][user_id]
     return [
         app_commands.Choice(name=msg, value=msg)
         for msg in keys if current.lower() in msg.lower()
@@ -78,11 +91,24 @@ def convert_to_seconds(time):
     return a
 
 
+@client.tree.command()
+async def remind(interaction:discord.Interaction,time:str,reason:str):
+    """Set a reminder"""
+    await interaction.response.defer(ephemeral=True)
+    print("inside remind")
+    t=convert_to_seconds(time)
+    if t==-1:
+        await interaction.followup.send('please specify s,m,h or d',ephemeral=True)
+        return
+    await AutoFeed.set_reminder(client, interaction, t, reason, dbi)
+    return
+
 @client.tree.command(name='auto-delete')
 #@app_commands.check(check_command_permission)
 async def auto_delete(interaction: discord.Interaction,time:str,channel: Optional[discord.TextChannel]=None):
     """Set a channel to auto delete after a set time"""
     await interaction.response.defer(ephemeral=True)
+    print("inside auto_delete")
     if channel==None:channel=interaction.channel
     key=str(channel.id)
     t=convert_to_seconds(time)
@@ -99,6 +125,7 @@ async def auto_delete(interaction: discord.Interaction,time:str,channel: Optiona
 async def auto_delete_stop(interaction: discord.Interaction,channel: Optional[discord.TextChannel]=None):
     """Stop auto deleting in a channel"""
     await interaction.response.defer(ephemeral=True)
+    print("inside auto_delete_stop")
     if channel==None:channel=interaction.channel
     key=str(channel.id)
     if AutoFeed.delete_tasks.get(key)==None:
@@ -256,26 +283,84 @@ async def random_shows(interaction: discord.Interaction,genre: Optional[str]=Non
 @client.tree.command()
 @app_commands.check(check_command_permission)
 async def purge(interaction: discord.Interaction,amount: int):
-    """Delete the last few messages in a channel"""
+    """Delete messages in bulk"""
     await interaction.response.defer(ephemeral=True)
     print('inside purge')
     channel=interaction.channel
     cnt=0
-    print(f"data:{interaction.data}")
     async for m in channel.history():
         if m.pinned==False and m.id!=interaction.id:
-            print(f"m.id:{m.id},interaction.id:{interaction.id}")
             await m.delete()
             cnt+=1
         if cnt==amount:break
-    await interaction.followup.send(f"Purged {amount} messages")
-    await channel.send(f"Purged {amount} messages")
+    await interaction.followup.send(f"Purged {cnt} messages")
+    await channel.send(f"Purged {cnt} messages")
     return
 
 @purge.error
 async def purge_error(interaction: discord.Interaction,error):
     print('inside purge_error ',error)
     await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
+    return
+
+@client.tree.command()
+@app_commands.check(check_command_permission)
+async def warn(interaction: discord.Interaction,user: discord.Member,reason: str):
+    """Add a criminal record to a user"""
+    await interaction.response.defer()
+    print("inside warn")
+    await Warnings.warn(interaction,user,reason,dbi)
+    return
+
+@warn.error
+async def warn_error(interaction: discord.Interaction,error):
+    print("inside warn_error",error)
+    await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
+    return
+
+@client.tree.command(name="criminal-record")
+@app_commands.check(check_command_permission)
+async def criminal_record(interaction: discord.Interaction,user: discord.Member):
+    """Display criminal record of a user"""
+    await interaction.response.defer(ephemeral=True)
+    print("inside criminal_record")
+    await Warnings.criminal_record(interaction,user,dbi)
+    return
+
+@criminal_record.error
+async def criminal_record_error(interaction: discord.Interaction,error):
+    print("inside criminal_record_error",error)
+    await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
+    return
+
+@client.tree.command(name="remove-warning")
+@app_commands.autocomplete(warning=criminal_autocomplete)
+@app_commands.check(check_command_permission)
+async def remove_warning(interaction: discord.Interaction,user: discord.Member,warning:str):
+    """Remove a criminal record of a user"""
+    await interaction.response.defer(ephemeral=True)
+    print("inside remove_warning")
+    await Warnings.remove_warning(interaction,user,warning)
+    return
+
+@remove_warning.error
+async def remove_warning_error(interaction: discord.Interaction,error):
+    print("inside remove_warning_error",error)
+    await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
+    return
+
+@client.tree.command()
+async def afk(interaction: discord.Interaction,reason:str):
+    """Set afk"""
+    await interaction.response.defer(ephemeral=True)
+    print("inside afk")
+    guild_id=str(interaction.guild_id)
+    user_id=str(interaction.user.id)
+    nm=interaction.user.name
+    if interaction.user.nick!=None:nm=interaction.user.nick
+    if db.afk.get(guild_id)==None:db.afk[guild_id]=dict()
+    db.afk[guild_id][user_id]=[reason,nm]
+    await interaction.followup.send("afk set",ephemeral=True)
     return
 
 @client.tree.command(name='setup')
@@ -488,6 +573,24 @@ async def on_member_join(member):
 @client.event
 async def on_message(message):
     key=str(message.channel.id)
+    guild_id=''
+    if message.guild!=None:guild_id=str(message.guild.id)
+    if db.afk.get(guild_id)!=None:
+        user_id=str(message.author.id)
+        if db.afk[guild_id].get(user_id)!=None:
+            db.afk[guild_id].pop(user_id)
+        if len(message.mentions)>0 or message.reference!=None:
+            print(f"message.mentions:{message.mentions}")
+            ackmsgs=dict()
+            for member in message.mentions:
+                if db.afk[guild_id].get(str(member.id))!=None:ackmsgs[str(member.id)]=1
+            if message.reference!=None:
+                msg=await message.channel.fetch_message(message.reference.message_id)
+                user_id=str(msg.author.id)
+                if db.afk[guild_id].get(user_id)!=None:ackmsgs[user_id]=1
+            for k in ackmsgs:
+                await message.channel.send(f"{db.afk[guild_id][k][1]} is currently AFK: {db.afk[guild_id][k][0]}")
+
     if AutoFeed.delete_tasks.get(key)!=None:
         await asyncio.sleep(AutoFeed.delete_tasks[key])
         if message.pinned==False:
