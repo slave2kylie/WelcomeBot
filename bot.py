@@ -38,10 +38,13 @@ async def msg_autocomplete(interaction: discord.Interaction,current: str) -> Lis
         for msg in lmsgs if current.lower() in msg.lower()
     ]
 
-async def booksgenre_autocomplete(interaction: discord.Interaction,current: str) -> List[app_commands.Choice[str]]:
+async def genre_autocomplete(interaction: discord.Interaction,current: str) -> List[app_commands.Choice[str]]:
+    keys=db.books_keys
+    if interaction.command.name=="random-movie": keys=db.movies_keys
+    if interaction.command.name=="random-show": keys=db.shows_keys
     return [
         app_commands.Choice(name=msg, value=msg)
-        for msg in db.books_keys if current.lower() in msg.lower()
+        for msg in keys if current.lower() in msg.lower()
     ]
 
 def is_owner(interaction: discord.Interaction):
@@ -52,11 +55,105 @@ def is_owner(interaction: discord.Interaction):
 
 def check_command_permission(interaction: discord.Interaction):
     cmdrole = dbi.get(str(interaction.guild_id),db.KEYS.CMD_ROLE)
+    print(f'cmdrolecheck {cmdrole}')
     for role in interaction.user.roles:
         if(role.name == cmdrole):
             return True
     return False
 
+def convert_to_seconds(time):
+    c=time[-1]
+    a=1
+    if c=='d':
+        a=a*60*60*24
+    elif c=='h':
+        a=a*60*60
+    elif c=='m':
+        a=a*60
+    elif c=='s':
+        a=a
+    else:
+        return -1
+    a=a*int(time[:-1])
+    return a
+
+
+@client.tree.command(name='auto-delete')
+#@app_commands.check(check_command_permission)
+async def auto_delete(interaction: discord.Interaction,time:str,channel: Optional[discord.TextChannel]=None):
+    """Set a channel to auto delete after a set time"""
+    await interaction.response.defer(ephemeral=True)
+    if channel==None:channel=interaction.channel
+    key=str(channel.id)
+    t=convert_to_seconds(time)
+    if t==-1:
+        await interaction.followup.send('please specify s,m,h or d',ephemeral=True)
+        return
+    AutoFeed.delete_tasks[key]=t
+    await interaction.followup.send('Auto delete set',ephemeral=True)
+    return
+
+
+@client.tree.command(name='stop-auto-delete')
+#@app_commands.check(check_command_permission)
+async def auto_delete_stop(interaction: discord.Interaction,channel: Optional[discord.TextChannel]=None):
+    """Stop auto deleting in a channel"""
+    await interaction.response.defer(ephemeral=True)
+    if channel==None:channel=interaction.channel
+    key=str(channel.id)
+    if AutoFeed.delete_tasks.get(key)==None:
+        await interaction.followup.send(f"No Auto delete set for {channel}",ephemeral=True)
+        return
+    AutoFeed.delete_tasks.pop(key)
+    await interaction.followup.send('Auto delete stopped',ephemeral=True)
+    return
+
+@client.tree.command()
+@app_commands.check(check_command_permission)
+async def kick(interaction: discord.Interaction,user: discord.Member,reason: str):
+    """Kick a user from guild"""
+    await interaction.response.defer()
+    print('inside kick')
+    if interaction.user.id==user.id:
+        await interaction.followup.send("You can't kick yourself")
+        return
+    await interaction.guild.kick(user,reason=reason)
+    guild_id=str(interaction.guild_id)
+    embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR),title=f"{user} was kicked")
+    
+    s=f"> {reason}"
+    embed.description=s
+    await interaction.followup.send(embed=embed)
+    return
+
+@kick.error
+async def kick_error(interaction: discord.Interaction,error):
+    print(f'inside kick error ',error)
+    await interaction.response.send_message("You do not have permission to kick members")
+    return
+
+@client.tree.command()
+@app_commands.check(check_command_permission)
+async def ban(interaction: discord.Interaction,user: discord.Member,reason: str):
+    """Ban a user from guild"""
+    await interaction.response.defer()
+    print('inside ban')
+    if interaction.user.id==user.id:
+        await interaction.followup.send("You can't ban yourself")
+        return
+    await interaction.guild.ban(user,reason=reason)
+    guild_id=str(interaction.guild_id)
+    embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR),title=f"{user} was banned")
+    s=f"> {reason}"
+    embed.description=s
+    await interaction.followup.send(embed=embed)
+    return
+
+@ban.error
+async def ban_error(interaction: discord.Interaction,error):
+    print(f'inside ban error ',error)
+    await interaction.response.send_message("You do not have permission to ban members")
+    return
 
 @client.tree.command(name='autofeed')
 @app_commands.check(check_command_permission)
@@ -88,6 +185,7 @@ async def auto_feed_error(interaction: discord.Interaction,error):
 
 @client.tree.command(name='imagine')
 async def Imagine(interaction: discord.Interaction,prompt: str):
+    """Generate an AI Image"""
     guild_id=str(interaction.guild_id)
     await AIImage.Imagine(client,interaction,dbi.get(guild_id,db.KEYS.EMBED_COLOR),prompt)
     return
@@ -107,30 +205,83 @@ async def auto_feed_stop_error(interaction: discord.Interaction,error):
     await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
     return
 
-@client.tree.command(name='random-book')
-@app_commands.autocomplete(genre=booksgenre_autocomplete)
-async def random_books(interaction: discord.Interaction,genre: Optional[str]=None):
-    await interaction.response.defer()
-    print('inside random_books')
+async def random_items(interaction:discord.Interaction,genre,dbitems):
+    guild_id=str(interaction.guild_id)
     if genre==None:
-        books=[]
-        for k in db.books:
-            books.extend(db.books[k])
-        book=books[random.randint(0,len(books)-1)]
-        await interaction.followup.send(book)
+        items=[]
+        for k in dbitems:
+            items.extend(dbitems[k])
+        item=items[random.randint(0,len(items)-1)]
+        embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR))
+        embed.description=item
+        await interaction.followup.send(embed=embed)
         return
-    if db.books.get(genre)==None:
+    if dbitems.get(genre)==None:
         await interaction.followup.send("Not a valid genre")
         return
-    books=db.books[genre]
-    book=books[random.randint(0,len(books)-1)]
-    await interaction.followup.send(book)
+    items=dbitems[genre]
+    item=items[random.randint(0,len(items)-1)]
+    embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR))
+    embed.description=item
+    await interaction.followup.send(embed=embed)
+    return
+
+@client.tree.command(name='random-book')
+@app_commands.autocomplete(genre=genre_autocomplete)
+async def random_books(interaction: discord.Interaction,genre: Optional[str]=None):
+    """Get a random book recommendation"""
+    await interaction.response.defer()
+    print('inside random_books')
+    await random_items(interaction, genre, db.books)
+    return
+
+@client.tree.command(name='random-movie')
+@app_commands.autocomplete(genre=genre_autocomplete)
+async def random_movies(interaction: discord.Interaction,genre: Optional[str]=None):
+    """Get a random movie recommendation"""
+    await interaction.response.defer()
+    print('inside random_movies')
+    await random_items(interaction, genre, db.movies)
+    return
+
+@client.tree.command(name='random-show')
+@app_commands.autocomplete(genre=genre_autocomplete)
+async def random_shows(interaction: discord.Interaction,genre: Optional[str]=None):
+    """Get a random tv-show recommendation"""
+    await interaction.response.defer()
+    print('inside random_shows')
+    await random_items(interaction, genre, db.shows)
+    return
+
+@client.tree.command()
+@app_commands.check(check_command_permission)
+async def purge(interaction: discord.Interaction,amount: int):
+    """Delete the last few messages in a channel"""
+    await interaction.response.defer(ephemeral=True)
+    print('inside purge')
+    channel=interaction.channel
+    cnt=0
+    print(f"data:{interaction.data}")
+    async for m in channel.history():
+        if m.pinned==False and m.id!=interaction.id:
+            print(f"m.id:{m.id},interaction.id:{interaction.id}")
+            await m.delete()
+            cnt+=1
+        if cnt==amount:break
+    await interaction.followup.send(f"Purged {amount} messages")
+    await channel.send(f"Purged {amount} messages")
+    return
+
+@purge.error
+async def purge_error(interaction: discord.Interaction,error):
+    print('inside purge_error ',error)
+    await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
     return
 
 @client.tree.command(name='setup')
 @app_commands.check(is_owner)
 async def setup(interaction: discord.Interaction,embed_color: str,role: discord.Role):
-    """Set up bot for this server"""
+    """Set up mod bot for this server"""
     print("inside setup")
     embed_color="0x"+embed_color
     embed_color_int=int(embed_color,16)
@@ -332,6 +483,15 @@ async def on_member_join(member):
                 await member.send(dm_msg.format(member))
 
 
+    return
+
+@client.event
+async def on_message(message):
+    key=str(message.channel.id)
+    if AutoFeed.delete_tasks.get(key)!=None:
+        await asyncio.sleep(AutoFeed.delete_tasks[key])
+        if message.pinned==False:
+            await message.delete()
     return
 
 @client.event

@@ -12,6 +12,30 @@ for key in books:
     books_keys.append(key)
 print(f'loaded books keys,{books_keys}')
 
+global movies
+
+with open('movies.json') as f:
+    global movies
+    movies=json.load(f)
+    print(f'loaded movies,{movies}')
+
+movies_keys=[]
+for key in movies:
+    movies_keys.append(key)
+print(f'loaded movies keys,{movies_keys}')
+
+global shows
+
+with open('shows.json') as f:
+    global shows
+    shows=json.load(f)
+    print(f'loaded shows,{shows}')
+
+shows_keys=[]
+for key in shows:
+    shows_keys.append(key)
+print(f'loaded shows keys,{shows_keys}')
+
 mp={"0":"0"}
 
 class KEYS:
