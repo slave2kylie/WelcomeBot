@@ -5,7 +5,7 @@ import requests
 async def Imagine(client,interaction,embedcolor,prompt):
 	await interaction.response.defer()
 	client.loop.create_task(stablehorde(interaction.channel,embedcolor,prompt))
-	await interaction.followup.send("started generating Image. will take a miniute or two. please wait")
+	await interaction.followup.send("Generating image…please wait…")
 	return
 
 async def stablehorde(channel,embedcolor,prompt):

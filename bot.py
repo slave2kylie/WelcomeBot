@@ -104,9 +104,9 @@ async def remind(interaction:discord.Interaction,time:str,reason:str):
     return
 
 @client.tree.command(name='auto-delete')
-#@app_commands.check(check_command_permission)
+@app_commands.check(check_command_permission)
 async def auto_delete(interaction: discord.Interaction,time:str,channel: Optional[discord.TextChannel]=None):
-    """Set a channel to auto delete after a set time"""
+    """Set a channel to auto delete messages"""
     await interaction.response.defer(ephemeral=True)
     print("inside auto_delete")
     if channel==None:channel=interaction.channel
@@ -119,9 +119,15 @@ async def auto_delete(interaction: discord.Interaction,time:str,channel: Optiona
     await interaction.followup.send('Auto delete set',ephemeral=True)
     return
 
+@auto_delete.error
+async def auto_delete_error(interaction: discord.Interaction,error):
+    print("inside auto_delete_error",error)
+    await interaction.response.send_message("You do not have permissions for this command",ephemeral=True)
+    return
+
 
 @client.tree.command(name='stop-auto-delete')
-#@app_commands.check(check_command_permission)
+@app_commands.check(check_command_permission)
 async def auto_delete_stop(interaction: discord.Interaction,channel: Optional[discord.TextChannel]=None):
     """Stop auto deleting in a channel"""
     await interaction.response.defer(ephemeral=True)
@@ -133,6 +139,12 @@ async def auto_delete_stop(interaction: discord.Interaction,channel: Optional[di
         return
     AutoFeed.delete_tasks.pop(key)
     await interaction.followup.send('Auto delete stopped',ephemeral=True)
+    return
+
+@auto_delete_stop.error
+async def auto_delete_stop_error(interaction: discord.Interaction,error):
+    print("inside auto_delete_stop_error",error)
+    await interaction.response.send_message("You do not have permissions for this command",ephemeral=True)
     return
 
 @client.tree.command()
@@ -211,7 +223,7 @@ async def auto_feed_error(interaction: discord.Interaction,error):
     return
 
 @client.tree.command(name='imagine')
-async def Imagine(interaction: discord.Interaction,prompt: str):
+async def imagine(interaction: discord.Interaction,prompt: str):
     """Generate an AI Image"""
     guild_id=str(interaction.guild_id)
     await AIImage.Imagine(client,interaction,dbi.get(guild_id,db.KEYS.EMBED_COLOR),prompt)
@@ -274,7 +286,7 @@ async def random_movies(interaction: discord.Interaction,genre: Optional[str]=No
 @client.tree.command(name='random-show')
 @app_commands.autocomplete(genre=genre_autocomplete)
 async def random_shows(interaction: discord.Interaction,genre: Optional[str]=None):
-    """Get a random tv-show recommendation"""
+    """Get a random tv show recommendation"""
     await interaction.response.defer()
     print('inside random_shows')
     await random_items(interaction, genre, db.shows)
@@ -293,7 +305,7 @@ async def purge(interaction: discord.Interaction,amount: int):
             await m.delete()
             cnt+=1
         if cnt==amount:break
-    await interaction.followup.send(f"Purged {cnt} messages")
+    await interaction.delete_original_response()
     await channel.send(f"Purged {cnt} messages")
     return
 
@@ -306,7 +318,7 @@ async def purge_error(interaction: discord.Interaction,error):
 @client.tree.command()
 @app_commands.check(check_command_permission)
 async def warn(interaction: discord.Interaction,user: discord.Member,reason: str):
-    """Add a criminal record to a user"""
+    """Add a warning to a users record"""
     await interaction.response.defer()
     print("inside warn")
     await Warnings.warn(interaction,user,reason,dbi)
@@ -337,7 +349,7 @@ async def criminal_record_error(interaction: discord.Interaction,error):
 @app_commands.autocomplete(warning=criminal_autocomplete)
 @app_commands.check(check_command_permission)
 async def remove_warning(interaction: discord.Interaction,user: discord.Member,warning:str):
-    """Remove a criminal record of a user"""
+    """Remove a warning from a users record"""
     await interaction.response.defer(ephemeral=True)
     print("inside remove_warning")
     await Warnings.remove_warning(interaction,user,warning)
@@ -360,7 +372,7 @@ async def afk(interaction: discord.Interaction,reason:str):
     if interaction.user.nick!=None:nm=interaction.user.nick
     if db.afk.get(guild_id)==None:db.afk[guild_id]=dict()
     db.afk[guild_id][user_id]=[reason,nm]
-    await interaction.followup.send("afk set",ephemeral=True)
+    await interaction.followup.send("AFK has been set",ephemeral=True)
     return
 
 @client.tree.command(name='setup')
@@ -394,7 +406,9 @@ async def add_role(interaction: discord.Interaction,member: discord.Member,role:
     await member.add_roles(role)
     guild_id=str(interaction.guild_id)
     embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR))
-    embed.description=f'Added role {role.name} to {member.name}'
+    nm=member.name
+    if member.nick !=None:nm=member.nick
+    embed.description=f'Added role **{role.name}** to **{nm}**'
     await interaction.followup.send(embed=embed)
     return
 
@@ -413,7 +427,9 @@ async def remove_role(interaction: discord.Interaction,member: discord.Member,ro
     await member.remove_roles(role)
     guild_id=str(interaction.guild_id)
     embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR))
-    embed.description=f'Removed role {role.name} from {member.name}'
+    nm=member.name
+    if member.nick !=None:nm=member.nick
+    embed.description=f'Removed role **{role.name}** from **{nm}**'
     await interaction.followup.send(embed=embed)
     return
 
@@ -423,13 +439,30 @@ async def remove_role_error(interaction: discord.Interaction,error):
     await interaction.response.send_message("You do not have permissions to run this command",ephemeral=True)
     return
 
+#@client.tree.command(name='welcome-message')
+#@app_commands.check(check_command_permission)
+#async def welcome_message(interaction: discord.Interaction,message: str,channel: Optional[discord.TextChannel]=None):
+#    """Set a welcome message"""
+#    msg=message
+#    WelcomeMessage.welcome_message(dbi,interaction,msg,channel)
+#    await interaction.response.send_message('Welcome message is set',ephemeral=True)
+#    return
+
+#@welcome_message.error
+#async def welcome_message_error(interaction: discord.Interaction,error):
+#    print("welcome_message_error",error)
+#    await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
+#    return
+
 @client.tree.command(name='welcome-message')
 @app_commands.check(check_command_permission)
-async def welcome_message(interaction: discord.Interaction,message: str,channel: Optional[discord.TextChannel]=None):
+async def welcome_message(interaction: discord.Interaction,message: str,channel: Optional[discord.TextChannel]=None,image: Optional[discord.Attachment] = None,footer_text: Optional[str] = None,title_message: Optional[str]=None):
     """Set a welcome message"""
+    await interaction.response.defer(ephemeral=True)
+    print("inside welcome-message")
     msg=message
-    WelcomeMessage.welcome_message(dbi,interaction,msg,channel)
-    await interaction.response.send_message('Welcome message is set',ephemeral=True)
+    WelcomeMessage.welcome_message(dbi,interaction,msg,channel,image,footer_text,title_message)
+    await interaction.followup.send('welcome Message set')
     return
 
 @welcome_message.error
@@ -438,48 +471,35 @@ async def welcome_message_error(interaction: discord.Interaction,error):
     await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
     return
 
-@client.tree.command(name='welcome-embed')
-@app_commands.check(check_command_permission)
-async def welcome_embed(interaction: discord.Interaction,message: str,channel: Optional[discord.TextChannel]=None,image: Optional[discord.Attachment] = None,footer_text: Optional[str] = None,title_message: Optional[str]=None):
-    """Set a welcome message embed"""
-    msg=message
-    WelcomeMessage.welcome_embed(dbi,interaction,msg,channel,image,footer_text,title_message)
-    await interaction.response.send_message('welcome embed set',ephemeral=True)
-    return
+#@client.tree.command(name='dm-welcome-message')
+#@app_commands.check(check_command_permission)
+#async def dm_welcome_message(interaction: discord.Interaction,message: str):
+#    """Set a dm welcome message"""
+#    msg=message
+#    DmWelcomeMessage.dm_welcome_message(dbi,interaction,msg)
+#    await interaction.response.send_message('Dm welcome message has been set',ephemeral=True)
+#    return
 
-@welcome_embed.error
-async def welcome_embed_error(interaction: discord.Interaction,error):
-    print("welcome_embed_error",error)
-    await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
-    return
+#@dm_welcome_message.error
+#async def dm_welcome_message_error(interaction: discord.Interaction,error):
+#    print("welcome_message_error",error)
+#    await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
+#    return
 
 @client.tree.command(name='dm-welcome-message')
 @app_commands.check(check_command_permission)
-async def dm_welcome_message(interaction: discord.Interaction,message: str):
-    """Set a dm welcome message"""
+async def dm_welcome_message(interaction: discord.Interaction,message: str,image: Optional[discord.Attachment] = None,footer_text: Optional[str] = None,title_message: Optional[str]=None):
+    """Set a dm welcome embed message"""
+    await interaction.response.defer(ephemeral=True)
+    print("inside dm_welcome_message")
     msg=message
-    DmWelcomeMessage.dm_welcome_message(dbi,interaction,msg)
-    await interaction.response.send_message('Dm welcome message has been set',ephemeral=True)
+    DmWelcomeMessage.dm_welcome_message(dbi,interaction,msg,image,footer_text,title_message)
+    await interaction.followup.send('Dm welcome message has been set')
     return
 
 @dm_welcome_message.error
 async def dm_welcome_message_error(interaction: discord.Interaction,error):
     print("welcome_message_error",error)
-    await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
-    return
-
-@client.tree.command(name='dm-welcome-embed')
-@app_commands.check(check_command_permission)
-async def dm_welcome_embed(interaction: discord.Interaction,message: str,image: Optional[discord.Attachment] = None,footer_text: Optional[str] = None,title_message: Optional[str]=None):
-    """Set a dm welcome embed message"""
-    msg=message
-    DmWelcomeMessage.dm_welcome_embed(dbi,interaction,msg,image,footer_text,title_message)
-    await interaction.response.send_message('Dm welcome embed has been set',ephemeral=True)
-    return
-
-@dm_welcome_embed.error
-async def dm_welcome_embed_error(interaction: discord.Interaction,error):
-    print("welcome_embed_error",error)
     await interaction.response.send_message("You do not have permission for this command, peasant.",ephemeral=True)
     return
 
@@ -553,7 +573,7 @@ async def on_member_join(member):
             embed_channel=dbi.get(guild_id,db.KEYS.EMBED_CHANNEL)
             await embed_channel.send(embed=embed)
         else:
-            text_channel=dbi.get(guild_id,db.KEYS.TEXT_CHANNEL)
+            text_channel=dbi.get(guild_id,db.KEYS.EMBED_CHANNEL)
             if text_channel != None:
                 await text_channel.send(msg.format(member))
     
@@ -566,8 +586,6 @@ async def on_member_join(member):
         else:
             if dm_msg != "":
                 await member.send(dm_msg.format(member))
-
-
     return
 
 @client.event
@@ -589,7 +607,7 @@ async def on_message(message):
                 user_id=str(msg.author.id)
                 if db.afk[guild_id].get(user_id)!=None:ackmsgs[user_id]=1
             for k in ackmsgs:
-                await message.channel.send(f"{db.afk[guild_id][k][1]} is currently AFK: {db.afk[guild_id][k][0]}")
+                await message.channel.send(f"**{db.afk[guild_id][k][1]}** is currently AFK: {db.afk[guild_id][k][0]}")
 
     if AutoFeed.delete_tasks.get(key)!=None:
         await asyncio.sleep(AutoFeed.delete_tasks[key])

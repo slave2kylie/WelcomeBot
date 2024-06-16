@@ -2,7 +2,7 @@ from typing import Optional, Union
 
 import discord
 import db
-
+"""
 def dm_welcome_message(dbi,interaction: discord.Interaction,msg: str):
     print("inside dm_welcome_message")
     guild_id = str(interaction.guild_id)
@@ -10,8 +10,8 @@ def dm_welcome_message(dbi,interaction: discord.Interaction,msg: str):
     dbi.set(guild_id,db.KEYS.DM_EMBED_SET,False)
     dbi.set(guild_id,db.KEYS.CAN_SEND_DM_MSG,True)
     return
-
-def dm_welcome_embed(dbi,interaction: discord.Interaction,msg: str,image: discord.Attachment,footer_text: str,title_message: str):
+"""
+def dm_welcome_message(dbi,interaction: discord.Interaction,msg: str,image: discord.Attachment,footer_text: str,title_message: str):
     print("inside dm_welcome_embed")
     guild_id=str(interaction.guild_id)
     embedcolor=dbi.get(guild_id,db.KEYS.EMBED_COLOR)
@@ -26,7 +26,10 @@ def dm_welcome_embed(dbi,interaction: discord.Interaction,msg: str,image: discor
     
     dbi.set(guild_id,db.KEYS.DM_TEXT_MSG,msg)
     dbi.set(guild_id,db.KEYS.DM_EMBED,embed)
-    dbi.set(guild_id,db.KEYS.DM_EMBED_SET,True)
+    if title_message==None and footer_text==None and image==None:
+        dbi.set(guild_id,db.KEYS.DM_EMBED_SET,False)    
+    else:
+        dbi.set(guild_id,db.KEYS.DM_EMBED_SET,True)
     dbi.set(guild_id,db.KEYS.CAN_SEND_DM_MSG,True)
 
     return

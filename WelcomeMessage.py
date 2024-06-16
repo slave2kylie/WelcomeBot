@@ -3,6 +3,7 @@ from typing import Optional, Union
 import discord
 import db
 
+"""
 def welcome_message(dbi,interaction: discord.Interaction,msg: str,channel: discord.TextChannel):
     print("inside welcome_message")
     text_channel=channel
@@ -14,8 +15,8 @@ def welcome_message(dbi,interaction: discord.Interaction,msg: str,channel: disco
     dbi.set(guild_id,db.KEYS.EMBED_SET,False)
     dbi.set(guild_id,db.KEYS.CAN_SEND_MSG,True)
     return
-
-def welcome_embed(dbi,interaction: discord.Interaction,msg: str,channel: discord.TextChannel,image: discord.Attachment,footer_text: str,title_message: str):
+"""
+def welcome_message(dbi,interaction: discord.Interaction,msg: str,channel: discord.TextChannel,image: discord.Attachment,footer_text: str,title_message: str):
     print("inside welcome_embed")
     guild_id=str(interaction.guild_id)
     embedcolor=dbi.get(guild_id,db.KEYS.EMBED_COLOR)
@@ -34,7 +35,10 @@ def welcome_embed(dbi,interaction: discord.Interaction,msg: str,channel: discord
     dbi.set(guild_id,db.KEYS.TEXT_MSG,msg)
     dbi.set(guild_id,db.KEYS.EMBED,embed)
     dbi.set(guild_id,db.KEYS.EMBED_CHANNEL,embed_channel)
-    dbi.set(guild_id,db.KEYS.EMBED_SET,True)
+    if title_message==None and footer_text==None and image==None:
+        dbi.set(guild_id,db.KEYS.EMBED_SET,False)
+    else:
+        dbi.set(guild_id,db.KEYS.EMBED_SET,True)
     dbi.set(guild_id,db.KEYS.CAN_SEND_MSG,True)
 
     return

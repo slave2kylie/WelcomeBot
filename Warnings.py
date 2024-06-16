@@ -6,10 +6,12 @@ warnings=dict()
 async def warn(interaction,user,reason,dbi):
 	guild_id=str(interaction.guild_id)
 	user_id=str(user.id)
+	nm=user.name
+	if user.nick!=None:nm=user.nick
 	if warnings.get(guild_id)==None: warnings[guild_id]=dict()
 	if warnings[guild_id].get(user_id)==None: warnings[guild_id][user_id]=[]
 	warnings[guild_id][user_id].append(reason)
-	embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR),title=f"{user} was warned")
+	embed=discord.Embed(color=dbi.get(guild_id,db.KEYS.EMBED_COLOR),title=f"{nm} was warned")
 	s=f"> {reason}"
 	embed.description=s
 	await interaction.followup.send(embed=embed) 
